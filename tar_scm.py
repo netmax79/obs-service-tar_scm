@@ -68,7 +68,7 @@ def safe_run(cmd, cwd, interactive=False):
     return (proc.returncode, output)
 
 
-def fetch_upstream_git(url, clone_dir, revision, cwd, kwargs, user, passwd):
+def fetch_upstream_git(url, clone_dir, revision, cwd, kwargs):
     """Fetch sources via git."""
     safe_run(['git', 'clone', url, clone_dir], cwd=cwd,
              interactive=sys.stdout.isatty())
@@ -77,27 +77,27 @@ def fetch_upstream_git(url, clone_dir, revision, cwd, kwargs, user, passwd):
                  clone_dir)
 
 
-def fetch_upstream_svn(url, clone_dir, revision, cwd, kwargs, user, passwd):
+def fetch_upstream_svn(url, clone_dir, revision, cwd, kwargs):
     """Fetch sources via svn."""
     command = ['svn', 'checkout', '--non-interactive', url, clone_dir]
-    if user is None and passwd is None:
-	command = ['svn', 'checkout', '--non-interactive', url, clone_dir]
+    if 'username' in kwargs and 'password' in kwargs:
+	command = ['svn', 'checkout', '--no-auth-cache', '--username', kwargs['username'], '--password', kwargs['password'], '--non-interactive', url, clone_dir]
 	if revision:
 		command.insert(4, '-r%s' % revision)
     else:
-	command = ['svn', 'checkout', '--no-auth-cache', '--username', user, '--password', passwd, '--non-interactive', url, clone_dir]
+	command = ['svn', 'checkout', '--non-interactive', url, clone_dir]
 	if revision:
 		command.insert(9, '-r%s' % revision)
     safe_run(command, cwd, interactive=sys.stdout.isatty())
 
 
-def fetch_upstream_hg(url, clone_dir, revision, cwd, kwargs, user, passwd):
+def fetch_upstream_hg(url, clone_dir, revision, cwd, kwargs):
     """Fetch sources via hg."""
     safe_run(['hg', 'clone', url, clone_dir], cwd,
              interactive=sys.stdout.isatty())
 
 
-def fetch_upstream_bzr(url, clone_dir, revision, cwd, kwargs, user, passwd):
+def fetch_upstream_bzr(url, clone_dir, revision, cwd, kwargs):
     """Fetch sources from bzr."""
     command = ['bzr', 'checkout', url, clone_dir]
     if revision:
@@ -114,7 +114,7 @@ FETCH_UPSTREAM_COMMANDS = {
 }
 
 
-def update_cache_git(url, clone_dir, revision, user, passwd):
+def update_cache_git(url, clone_dir, revision):
     """Update sources via git."""
     safe_run(['git', 'fetch', '--tags'],
              cwd=clone_dir, interactive=sys.stdout.isatty())
@@ -122,7 +122,7 @@ def update_cache_git(url, clone_dir, revision, user, passwd):
              cwd=clone_dir, interactive=sys.stdout.isatty())
 
 
-def update_cache_svn(url, clone_dir, revision, user, passwd):
+def update_cache_svn(url, clone_dir, revision):
     """Update sources via svn."""
     command = ['svn', 'update']
     if revision:
@@ -130,7 +130,7 @@ def update_cache_svn(url, clone_dir, revision, user, passwd):
     safe_run(command, cwd=clone_dir, interactive=sys.stdout.isatty())
 
 
-def update_cache_hg(url, clone_dir, revision, user, passwd):
+def update_cache_hg(url, clone_dir, revision):
     """Update sources via hg."""
     try:
         safe_run(['hg', 'pull'], cwd=clone_dir,
@@ -143,7 +143,7 @@ def update_cache_hg(url, clone_dir, revision, user, passwd):
             raise
 
 
-def update_cache_bzr(url, clone_dir, revision, user, passwd):
+def update_cache_bzr(url, clone_dir, revision):
     """Update sources via bzr."""
     command = ['bzr', 'update']
     if revision:
@@ -235,7 +235,7 @@ def _calc_dir_to_clone_to(scm, url, out_dir):
     return clone_dir
 
 
-def fetch_upstream(scm, url, revision, out_dir, **kwargs, username, password):
+def fetch_upstream(scm, url, revision, out_dir, **kwargs):
     """Fetch sources from repository and checkout given revision."""
     clone_dir = _calc_dir_to_clone_to(scm, url, out_dir)
 
@@ -245,10 +245,10 @@ def fetch_upstream(scm, url, revision, out_dir, **kwargs, username, password):
         if scm not in FETCH_UPSTREAM_COMMANDS:
             sys.exit("Don't know how to fetch for '%s' SCM" % scm)
         FETCH_UPSTREAM_COMMANDS[scm](url, clone_dir, revision, cwd=out_dir,
-                                     kwargs=kwargs, user=username, passwd=password)
+                                     kwargs=kwargs)
     else:
         logging.info("Detected cached repository...")
-        UPDATE_CACHE_COMMANDS[scm](url, clone_dir, revision, user=username, passwd=password)
+        UPDATE_CACHE_COMMANDS[scm](url, clone_dir, revision)
 
     # switch_to_revision
     SWITCH_REVISION_COMMANDS[scm](clone_dir, revision)
@@ -928,7 +928,7 @@ def main():
         repodir = tempfile.mkdtemp(dir=args.outdir)
         CLEANUP_DIRS.append(repodir)
 
-    clone_dir = fetch_upstream(out_dir=repodir, **args.__dict__, args.username, args.password)
+    clone_dir = fetch_upstream(out_dir=repodir, **args.__dict__)
 
     if args.filename:
         dstname = args.filename
